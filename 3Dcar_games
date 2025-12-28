@@ -1,0 +1,164 @@
+using UnityEngine;
+using UnityEngine.UI;
+using System.Collections;
+
+public class SingleFileCarRacingGame : MonoBehaviour
+{
+    [Header("CAR")]
+    public Rigidbody car;
+    public WheelCollider[] wheels;
+    public Transform[] wheelMeshes;
+    public float motorPower = 1500f;
+    public float steeringPower = 30f;
+    public float brakePower = 3000f;
+
+    [Header("CAMERA")]
+    public Transform cameraTarget;
+    public Vector3 cameraOffset;
+    public float cameraSmooth = 5f;
+
+    [Header("UI")]
+    public Text speedText;
+    public Text lapText;
+    public Text countdownText;
+    public GameObject pausePanel;
+
+    [Header("RACE")]
+    public Transform finishLine;
+    public Transform respawnPoint;
+    public int totalLaps = 3;
+
+    [Header("AI CAR")]
+    public Transform aiCar;
+    public Transform[] aiWaypoints;
+    public float aiSpeed = 10f;
+
+    int lap = 1;
+    bool raceStarted = false;
+    int aiIndex = 0;
+
+    void Start()
+    {
+        lapText.text = "Lap: 1";
+        pausePanel.SetActive(false);
+        StartCoroutine(Countdown());
+    }
+
+    void Update()
+    {
+        HandlePause();
+        Speedometer();
+        CameraFollow();
+        AICarMove();
+    }
+
+    void FixedUpdate()
+    {
+        if (!raceStarted) return;
+        DriveCar();
+    }
+
+    IEnumerator Countdown()
+    {
+        car.isKinematic = true;
+        for (int i = 3; i > 0; i--)
+        {
+            countdownText.text = i.ToString();
+            yield return new WaitForSeconds(1);
+        }
+        countdownText.text = "GO!";
+        yield return new WaitForSeconds(1);
+        countdownText.text = "";
+        car.isKinematic = false;
+        raceStarted = true;
+    }
+
+    void DriveCar()
+    {
+        float move = Input.GetAxis("Vertical");
+        float steer = Input.GetAxis("Horizontal");
+        float brake = Input.GetKey(KeyCode.Space) ? brakePower : 0;
+
+        for (int i = 0; i < wheels.Length; i++)
+        {
+            wheels[i].motorTorque = move * motorPower;
+            wheels[i].steerAngle = steer * steeringPower;
+            wheels[i].brakeTorque = brake;
+            UpdateWheel(wheels[i], wheelMeshes[i]);
+        }
+    }
+
+    void UpdateWheel(WheelCollider col, Transform mesh)
+    {
+        Vector3 pos;
+        Quaternion rot;
+        col.GetWorldPose(out pos, out rot);
+        mesh.position = pos;
+        mesh.rotation = rot;
+    }
+
+    void Speedometer()
+    {
+        float speed = car.velocity.magnitude * 3.6f;
+        speedText.text = ((int)speed) + " km/h";
+    }
+
+    void CameraFollow()
+    {
+        Vector3 desiredPos = cameraTarget.position + cameraOffset;
+        Camera.main.transform.position =
+            Vector3.Lerp(Camera.main.transform.position, desiredPos, cameraSmooth * Time.deltaTime);
+        Camera.main.transform.LookAt(cameraTarget);
+    }
+
+    void HandlePause()
+    {
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            bool paused = Time.timeScale == 0;
+            Time.timeScale = paused ? 1 : 0;
+            pausePanel.SetActive(!paused);
+        }
+    }
+
+    void OnTriggerEnter(Collider other)
+    {
+        if (other.transform == finishLine)
+        {
+            lap++;
+            if (lap > totalLaps)
+            {
+                raceStarted = false;
+                countdownText.text = "FINISHED!";
+            }
+            else
+            {
+                lapText.text = "Lap: " + lap;
+            }
+        }
+    }
+
+    void AICarMove()
+    {
+        if (aiWaypoints.Length == 0) return;
+
+        Transform wp = aiWaypoints[aiIndex];
+        aiCar.position = Vector3.MoveTowards(aiCar.position, wp.position, aiSpeed * Time.deltaTime);
+        aiCar.LookAt(wp);
+
+        if (Vector3.Distance(aiCar.position, wp.position) < 2f)
+            aiIndex = (aiIndex + 1) % aiWaypoints.Length;
+    }
+
+    public void Respawn()
+    {
+        car.transform.position = respawnPoint.position;
+        car.transform.rotation = respawnPoint.rotation;
+        car.velocity = Vector3.zero;
+    }
+}
+
+git init
+git add .
+git commit -m "Single-file 3D Car Racing Game"
+git push origin main
